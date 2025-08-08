@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import HTTPException, File
+from fastapi import HTTPException, File, UploadFile
 from pathlib import Path
 import os
 import logging
@@ -34,3 +34,15 @@ def find_and_return_file_path(filename: str) -> str:
                 return str(Path(file_path))
     except: 
         raise HTTPException(status_code=404, detail=f"File '{filename}' not found ")
+    
+def validate_upload_file(file:UploadFile):
+    file_extention = Path(file.filename).suffix.lower()
+    try:
+        # if file is None: 
+        #     raise HTTPException(status_code=404, detail="No file found")
+        # if file > MAX_FILE_SIZE:
+        #     raise HTTPException(status_code=412, detail="Exceeding allowed file size")
+        # if file_extention not in ALLOWED_EXTENTIONS: 
+        #     raise HTTPException(status_code=412, detail="Invalid file extension")
+    except:
+        raise HTTPException(status_code=400, detail="Bad request")

@@ -5,7 +5,7 @@ class TotalFilesCount(BaseModel):
     total_directories: int
     total_files: int
 
-class AllItemsResponse(BaseModel):
+class AllItems(BaseModel):
     items: list
     description:str
     total: TotalFilesCount
