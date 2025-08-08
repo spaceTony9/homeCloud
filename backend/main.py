@@ -1,52 +1,57 @@
 from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import JSONResponse, PlainTextResponse, FileResponse
 from pathlib import Path
 from datetime import datetime
+from utils import Date, find_and_return_file_path
 from storage import CloudStorage
-from utils import Response
-from utils import Date
+from pydanticResponses import TotalFilesCount, AllItemsResponse
 import shutil
 import os
 
 app = FastAPI()  
-storage = CloudStorage()
+storage_root_path = CloudStorage.send_storage_root()
 
 @app.get("/")
 async def load_main_page():
     return {"message" : "you are on the main page"}
 
-@app.get("/cloudStorage")
+@app.get("/cloudStorage", response_model=AllItemsResponse)
 async def show_stored_data():
-
-    
-    response = Response().response
-    for entry in storage.storage_root.iterdir():
+    all_items = []
+    total = 0
+    total_dir = 0
+    total_files = 0
+    for entry in storage_root_path.iterdir():
         entry_info = entry.stat()
         date_modified = str(Date.convert_date(entry_info.st_mtime))
         item = {
             "name": entry.name,
-            "path": str(entry.relative_to(storage.storage_root)), 
+            "path": str(entry.relative_to(storage_root_path)), 
             "type": "directory" if entry.is_dir() else "file", 
             "date_modified" : date_modified
         }
-
-        response["items"].append(item)
-        response["total"]["summary"] += 1
+        all_items.append(item)
+        total += 1
         if entry.is_dir():
-            response["total"]["summary_directories"] += 1
+            total_dir += 1
         else:
-            response["total"]["summary_files"] += 1
+            total_files += 1
 
-    return response
+        total_objects = TotalFilesCount(total_directories=total_dir, total_files=total_files)
+
+    return AllItemsResponse(items=all_items, description="All stored items", total=total_objects)
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File()):
-    file_path = Path.joinpath(storage.storage_root, file.filename)
+    file_path = Path.joinpath(storage_root_path, file.filename)
+    response = response_class.get_response_obj()
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    return {"msg": "file created successfully"}
+    return response
 
 @app.get("/download/{filename}")
-async def download_file(filename:str):
-    for dirpath, dirname, files in os.walk(storage.storage_root):
-        if files == filename:
-            print("found")
+async def download_file(filename:str) -> dict:
+    response = response_class.get_response_obj()
+    find_and_return_file_path(filename)
+    response["message"] = "The file is found"
+    return response
