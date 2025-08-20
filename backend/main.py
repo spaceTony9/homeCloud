@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException,Response
 from fastapi.responses import JSONResponse, PlainTextResponse, FileResponse
 from pathlib import Path
 from datetime import datetime
-from utils import Date, find_and_return_file_path, validate_upload_file
+from utils import Date, find_and_return_file_path, validate_upload_file, calculate_file_size
 from storage import CloudStorage
 from pydanticResponses import TotalFilesCount, AllItems
 import shutil
@@ -17,11 +17,11 @@ async def load_main_page():
 
 @app.get("/cloudStorage", response_model=AllItems)
 async def show_stored_data():
-    all_items = []
-    total = 0
-    total_dir = 0
-    total_files = 0
     try:
+        all_items = []
+        total = 0
+        total_dir = 0
+        total_files = 0
         if storage_root_path:
             for entry in storage_root_path.iterdir():
                 entry_info = entry.stat()
@@ -30,10 +30,12 @@ async def show_stored_data():
                     "name": entry.name,
                     "path": str(entry.relative_to(storage_root_path)), 
                     "type": "directory" if entry.is_dir() else "file", 
-                    "date_modified" : date_modified
+                    "date_modified" : date_modified,
+                    "size": calculate_file_size(entry_info.st_size)
                 }
                 all_items.append(item)
                 total += 1
+
                 if entry.is_dir():
                     total_dir += 1
                 else:
@@ -47,13 +49,19 @@ async def show_stored_data():
 
 @app.post("/uploadFile")
 async def upload_file(file: UploadFile):
+    
     validate_upload_file(file)
+    file_path = Path.joinpath(storage_root_path, file.filename)
 
-    # Write check if the already exists
-    try:
-        file_path = Path.joinpath(storage_root_path, file.filename)
+
+    if os.path.exists(file_path) : #check if the file already exists
+        raise HTTPException(status_code=409, detail="File already exists")
+    
+    try:        
+        print(os.path.exists(file_path))
+
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+           shutil.copyfileobj(file.file, buffer)
         return JSONResponse(status_code=200, content={
             "message" : "File was successfully uploaded",
             "filename" : file.filename})
@@ -61,10 +69,8 @@ async def upload_file(file: UploadFile):
         raise HTTPException(status_code=500, detail="Failed to upload the file")
 
 
-
-# @app.get("/download/{filename}")
-# async def download_file(filename:str) -> dict:
-#     response = response_class.get_response_obj()
-#     find_and_return_file_path(filename)
-#     response["message"] = "The file is found"
-#     return response
+@app.get("/download/{filename}")
+async def download_file(filename : str):
+    file_path =find_and_return_file_path(filename)
+    
+    return FileResponse(path=file_path, status_code=200, filename=filename, media_type="application/octet-stream")
